@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const dashboard_1 = require("../controllers/dashboard");
+const auth_1 = require("../middlewares/auth");
+const router = (0, express_1.Router)();
+// Apply auth middleware to all dashboard endpoints
+router.use(auth_1.authenticate);
+router.get("/data", dashboard_1.getDashboardData);
+router.post("/transaction", dashboard_1.createTransaction);
+router.post("/budget", dashboard_1.createBudget);
+router.post("/goal", dashboard_1.createGoal);
+router.post("/resolve-anomaly", dashboard_1.resolveAnomaly);
+router.post("/chat", dashboard_1.chatCopilot);
+router.get("/health-score", dashboard_1.getHealthScore);
+router.get("/insights", dashboard_1.getAIInsights);
+router.post("/scan-receipt", dashboard_1.scanReceipt);
+router.post("/transactions/bulk-categorize", dashboard_1.bulkCategorize);
+router.post("/transactions/bulk-delete", dashboard_1.bulkDelete);
+exports.default = router;

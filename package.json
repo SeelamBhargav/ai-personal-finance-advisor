@@ -1,0 +1,21 @@
+{
+  "name": "finance-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"api,web,browser\" -c \"blue,green,magenta\" \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\" \"powershell -Command \\\"Start-Sleep -Seconds 3; Start-Process http://localhost:3000\\\"\"",
+    "build": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=packages/database",
+    "db:generate": "npm run db:generate --workspace=packages/database",
+    "db:seed": "npm run db:seed --workspace=packages/database"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.5.4"
+  }
+}

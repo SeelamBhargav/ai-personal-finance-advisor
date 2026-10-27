@@ -1,0 +1,335 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  REFUND
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  DEBT
+}
+
+enum GoalPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum GoalStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  UNDER_REVIEW
+}
+
+enum AnomalyStatus {
+  DETECTED
+  LEGITIMATE
+  SUSPICIOUS
+  DUPLICATE
+}
+
+enum NotificationType {
+  BUDGET_ALERT
+  ANOMALY
+  SUBSCRIPTION
+  SYSTEM
+}
+
+enum InsightCategory {
+  SPENDING
+  SAVINGS
+  BUDGET
+  GOAL
+  ANOMALY
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  role               Role               @default(USER)
+  isVerified         Boolean            @default(false)
+  verificationToken  String?
+  resetToken         String?
+  resetTokenExpires  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  accounts           Account[]
+  transactions       Transaction[]
+  budgets            Budget[]
+  goals              FinancialGoal[]
+  recurringPayments  RecurringPayment[]
+  debts              Debt[]
+  notifications      Notification[]
+  conversations      AIConversation[]
+  insights           AIInsight[]
+  reports            FinancialReport[]
+  simulations        Simulation[]
+  auditLogs          AuditLog[]
+
+  @@index([email])
+}
+
+model Account {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  type            AccountType
+  balance         Float          @default(0.0)
+  currency        String         @default("INR")
+  institutionName String
+  isArchived      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  transactions    Transaction[]
+  investments     Investment[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id              String          @id @default(uuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId       String
+  account         Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  amount          Float
+  currency        String          @default("INR")
+  merchant        String
+  description     String?
+  category        String
+  subcategory     String?
+  transactionType TransactionType
+  transactionDate DateTime
+  isRecurring     Boolean         @default(false)
+  isDuplicate     Boolean         @default(false)
+  aiConfidence    Float           @default(1.0)
+  anomalyStatus   AnomalyStatus   @default(LEGITIMATE)
+  esgType         String          @default("CORPORATE") // LOCAL or CORPORATE
+  paymentMethod   String?         @default("CASH")
+  status          String?         @default("COMPLETED")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId, transactionDate])
+  @@index([accountId])
+  @@index([category])
+}
+
+model Budget {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  amount         Float
+  period         String           @default("MONTHLY") // WEEKLY, MONTHLY, CUSTOM
+  startDate      DateTime
+  endDate        DateTime
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  categories     BudgetCategory[]
+
+  @@index([userId])
+}
+
+model BudgetCategory {
+  id         String   @id @default(uuid())
+  budgetId   String
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category   String
+  amount     Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([budgetId, category])
+}
+
+model FinancialGoal {
+  id                  String       @id @default(uuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalName            String
+  targetAmount        Float
+  currentAmount       Float        @default(0.0)
+  targetDate          DateTime
+  monthlyContribution Float        @default(0.0)
+  priority            GoalPriority @default(MEDIUM)
+  status              GoalStatus   @default(IN_PROGRESS)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+model RecurringPayment {
+  id              String             @id @default(uuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId       String
+  name            String
+  amount          Float
+  currency        String             @default("INR")
+  frequency       String             @default("MONTHLY") // WEEKLY, MONTHLY, YEARLY
+  startDate       DateTime
+  lastPaymentDate DateTime
+  nextPaymentDate DateTime
+  category        String
+  status          SubscriptionStatus @default(ACTIVE)
+  aiConfidence    Float              @default(1.0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model Debt {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  amount         Float
+  interestRate   Float
+  minimumPayment Float
+  dueDate        DateTime
+  status         String   @default("ACTIVE") // ACTIVE, PAID
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Investment {
+  id            String   @id @default(uuid())
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name          String
+  type          String   // STOCK, MUTUAL_FUND, CRYPTO, OTHER
+  quantity      Float
+  purchasePrice Float
+  currentPrice  Float
+  currency      String   @default("INR")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+model AIConversation {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  messages  AIMessage[]
+
+  @@index([userId])
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // user, assistant, system
+  content        String
+  rawToolCalls   Json?
+  createdAt      DateTime       @default(now())
+}
+
+model AIInsight {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    InsightCategory
+  severity    Severity        @default(INFO)
+  isRead      Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  @@index([userId, isRead])
+}
+
+model FinancialReport {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month     Int
+  year      Int
+  summary   Json
+  pdfUrl    String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, month, year])
+}
+
+model Simulation {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  scenarioType String
+  inputs       Json
+  results      Json
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  ipAddress String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
